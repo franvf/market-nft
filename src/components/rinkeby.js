@@ -1,3 +1,4 @@
+//File to check if the owner have a cryptodino NFT in rinkeby network
 import React, { Component } from 'react';
 import Web3 from 'web3';
 import Dino from '../abis/CryptoDino.json' //To connect tbe backend with the frontend we have to import the .json of our contrat

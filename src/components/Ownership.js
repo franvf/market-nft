@@ -26,7 +26,7 @@ class ownership extends Component{
         //Load accounts
         const accounts = await web3.eth.getAccounts() //Get all the accounts in our metamask
         this.setState({account: accounts[0]}) //Current account
-        const networkId = 80001 //BSC testnet id
+        const networkId = 5777 //BSC testnet id
         const networkData = NFT.networks[networkId] //Get information about this network
         if(networkData){
             const abi = NFT.abi //Contract information

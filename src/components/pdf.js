@@ -1,3 +1,4 @@
+//Not working file, only for test purpose.
 import React, {Component, PropTypes} from 'react';
 import html2canvas from "html2canvas"
 import {jsPDF} from "jspdf"
