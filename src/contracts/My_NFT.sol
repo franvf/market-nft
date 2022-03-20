@@ -1,66 +1,76 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.0;
-import "./ERC19.sol";
 
-contract My_NFT is ERC19 {
-    //Global variables
-    uint private itemsOnSale;
+import "../../node_modules/@openzeppelin/contracts/token/ERC1155/ERC1155.sol";
+import "../../node_modules/@openzeppelin/contracts/utils/Strings.sol";
+
+contract My_NFT is ERC1155 {
+    
+    //State variables
+    uint private itemsOnSale; //Variable to count number of items on sale
     uint[] private tokenKeys; //Array to save the different IDs of different NFT
-    address private contractOwner;
+    address private contractOwner;//Variable to store the contract owner
+    string private _uri = "https://gateway.pinata.cloud/ipfs/QmPZ2uYTeqsSGtGCDdvp1T9WA9gVzK5QvgsGvjemeiTd1m"; //NFT metadata URL.
 
-    //Create new type
+    //Struct to create a new type called Item.
     struct Item{
-        uint tokenId;
-        address nftContract;
-        address payable owner;
-        address payable creator;
-        uint amount;
-        string property;
-        uint price;
-        bool sold;
+        uint tokenId; // NFT identification number
+        address payable owner; //Who currently possess the NFT
+        address payable creator; //Who mint the NFT 
+        uint amount; // Number of identical NFTs
+        uint price; //Current NFT price
+        bool sold; //Variable to control if NFT is sold or not
     }
 
     //Mappings
-    mapping (uint => bool) private isNFTRegistered; //Map to know if an ID is registered
-    mapping (address => mapping (uint => bool)) private _isOwner; //Map to know if one address posees an NFT
+    mapping (uint => bool) private isNFTRegistered; //Mapiing to know if an ID is registered
+    mapping (address => mapping (uint => bool)) private _isOwner; //Mapiing to know if one address posees an NFT
     mapping (address => uint[]) private _owners; // Mapping the owner to NFT id
     mapping (address => uint) private _numberOfItems; //Mapping to know the number of nfts of each acount 
     mapping (uint => Item) private tokenIdToItem; //Link the tokenID to the item
 
-    //Visibility modifier
+    //Events
+    event minted(address holder, uint tokenId); //Event to inform that an item have been minted.
+    event itemBought(address buyer, uint tokenId); //Event to inform that an item have been bought.
+    event itemAddedToMkt(uint tokenId, uint price); //Event to inform that an item have been aded to market
+    event itemRemovedFromMkt(uint tokenId); //Event to inform that an item have been removed from market
+
+    //Function modifier
     modifier onlyOwner(address _address){
-        require(_address == contractOwner, "You don't have permisions");
+        require(_address == contractOwner, "You don't have permisions to execute this function");
         _;
     }
 
-    constructor() ERC19("https://ipfs.infura.io/ipfs/${id}"){
-        contractOwner = msg.sender;
+    constructor() ERC1155(_uri){
+        contractOwner = msg.sender; //The contract owner is who executes the constructor
     }
 
-    function mint(string memory tokenURI, uint256 tokenId, uint256 amount, string memory property, uint price) public onlyOwner(msg.sender) returns(uint){
+    function mint(uint tokenId, uint amount, uint price) public onlyOwner(msg.sender) returns(uint){
+        
         require(isNFTRegistered[tokenId] == false, "This NFT was already minted" );
-        require(tokenId != 0, "Zero is not allowed as ID, pleas try with another one" );
+        require(tokenId > 0, "Zero is not allowed as ID, pleas try with another one" );
 
-        _mint(msg.sender, tokenId, amount, "");
-        _setTokenURI(tokenId, tokenURI);
+        _mint(msg.sender, tokenId, amount, ""); //Call to ERC1155 mint function
 
         //Set the information in the arrays or mappings
-        Item memory item = Item(tokenId, address(this), payable(msg.sender), payable(msg.sender), amount, property, price, false);
-        tokenIdToItem[tokenId] = item;  //Insert an item in the mapping current position
+        Item memory item = Item(tokenId, payable(msg.sender), payable(msg.sender), amount, price, false); //Create a new item
+        tokenIdToItem[tokenId] = item;  //Link an item with its ID.
         tokenKeys.push(tokenId); //Push the tokenID in the tokenKeys array
         isNFTRegistered[tokenId] = true; //Register the token id on the mapping
         _isOwner[msg.sender][tokenId] = true; //The sender now posees this tokenId
         _owners[msg.sender].push(tokenId); //Register the NFT owner in the mapping
         _numberOfItems[msg.sender]++; //Increment the number of items for the sender
-        itemsOnSale++;
+        itemsOnSale++; //Incremente the number of items on sale
 
-        return tokenId;
+        emit minted(msg.sender, tokenId); //Emit the event to inform the network
+        
+        return tokenId; //Return the token id mited
     }
 
     function getItemsOnSale() public view returns(Item[] memory){
-        Item[] memory itemsToSale = new Item[](itemsOnSale); //Create an array to save the items to sale
+        Item[] memory itemsToSale = new Item[](itemsOnSale); //Create an static array to save the items to sale
         
-        //Create the necessary variables
+        //Create and initialize the necessary variables
         uint totalItems = tokenKeys.length; 
         uint currentId = 0;
         uint pos = 0;
@@ -69,37 +79,37 @@ contract My_NFT is ERC19 {
             currentId = tokenKeys[i]; //Get the current id
             bool isItemSold = tokenIdToItem[currentId].sold; //Check if the item is sold
             
-            if(!isItemSold && currentId != 0){ //If the item is not sold or burned
+            if(!isItemSold){ //If the item is not sold
                 Item memory currentItem = tokenIdToItem[currentId]; //Get this not sold item
-                itemsToSale[pos] = currentItem; //Save it into the array
+                itemsToSale[pos] = currentItem; //Store the current item into the array
                 pos++; //Increment the value of pos variable
             } 
         }
 
-        return itemsToSale;
+        return itemsToSale; //Return the array with items on sale.
     }
 
     function getMyItems() public view returns(Item[] memory){
         
-        uint quantityOfItems = _numberOfItems[msg.sender];
-        Item[] memory myItems = new Item[](quantityOfItems);
-        uint totalItems = tokenKeys.length;
-        uint currentId = 0;
-        address ownerOfCurrentItem;
-        Item memory currentItem;
-        uint pos = 0;
+        uint quantityOfItems = _numberOfItems[msg.sender]; //Get the number of items acquired by the current user
+        Item[] memory myItems = new Item[](quantityOfItems); //Create an static array to store the items
+        uint totalItems = tokenKeys.length; //Get the total number of items
+        uint currentId = 0; //Define currentId variable
+        address ownerOfCurrentItem; //Variable to store the owner of the current item
+        Item memory currentItem; //Variable to control the current item
+        uint pos = 0; //Variable to control the position in my_items array
 
-        for(uint i = 0; i < totalItems; i++){
-            currentId = tokenKeys[i];
-            ownerOfCurrentItem = tokenIdToItem[currentId].owner;
+        for(uint i = 0; i < totalItems; i++){ //Iterate through all elements
+            currentId = tokenKeys[i]; //Get the ID on position i
+            ownerOfCurrentItem = tokenIdToItem[currentId].owner; //Get the owner of the current item
 
-            if(ownerOfCurrentItem == msg.sender){
-                currentItem = tokenIdToItem[currentId];
-                myItems[pos] = currentItem;
-                pos++;
+            if(ownerOfCurrentItem == msg.sender){ //If the item owner is who executes the function
+                currentItem = tokenIdToItem[currentId]; //Get the current item
+                myItems[pos] = currentItem; //Add the current item to myItems array
+                pos++; //Increment the position variable
             }
         }
-        return myItems;
+        return myItems; //Return myItems array.
     }
 
     function isOwner(uint tokenId) public view returns(bool){
@@ -107,92 +117,73 @@ contract My_NFT is ERC19 {
     }
 
     function buyNft(uint tokenId) public payable{
-        require(isNFTRegistered[tokenId] == true, "This NFT not exists" );
-        uint price = tokenIdToItem[tokenId].price;
-        address currentOwner = tokenIdToItem[tokenId].owner;
-        require(msg.value == price, "Please, introduce a correct price");
+        require(isNFTRegistered[tokenId] == true, "This NFT not exists" ); 
+        uint price = tokenIdToItem[tokenId].price; //Get the price of the item to buy
+        address currentOwner = tokenIdToItem[tokenId].owner; //Get the NFT current owner
+        require(msg.value == price, "Please, introduce a correct price"); 
 
-        //if the creator != current owner pay a % of total
-        address creator = tokenIdToItem[tokenId].creator;
+        address creator = tokenIdToItem[tokenId].creator; //Get the NFT creator
         
-        if(creator == currentOwner){
-            tokenIdToItem[tokenId].owner.transfer(msg.value);
-        } else {
-            uint royalty = 0.03 ether;
-            price -= royalty;
-
-            tokenIdToItem[tokenId].creator.transfer(royalty); //Pay to the creator the 3% of current price
-            tokenIdToItem[tokenId].owner.transfer(price);
+        if(creator == currentOwner){ //If who creates the item is the current owner
+            tokenIdToItem[tokenId].owner.transfer(msg.value); //Pay the entire price to the owner
+        } else { //If who possess the NFT is not who creates it 
+            uint royalty = (price * 3) / 100; //Set a royaltie of 3%
+            price -= royalty; //The price is the current price less the royaltie
+            
+            tokenIdToItem[tokenId].creator.transfer(royalty); //Pay to the creator 
+            tokenIdToItem[tokenId].owner.transfer(price); //Pay to the current owner
         }
 
-        safeTransferFrom(currentOwner, msg.sender, tokenId, 1, "");
+        _safeTransferFrom(currentOwner, msg.sender, tokenId, 1, ""); //Call to safeTransferFrom function in ERC-1155 contract
 
-        //Modify owner
-        tokenIdToItem[tokenId].owner = payable(msg.sender); // review payable: ¿Why if owner is payable intrinsically on the struct, I have to do it payable again)
+        tokenIdToItem[tokenId].owner = payable(msg.sender); //Change the owner of the item
+        _isOwner[currentOwner][tokenId] = false; //The current owner is not the item owner
+        _isOwner[msg.sender][tokenId] = true; //Who buy the NFT is the current owner
+        _numberOfItems[currentOwner]--; //Subtract an item from the item counter to the current owner
+        _numberOfItems[msg.sender]++; //Add one item to the buyer counter
+        deleteItem(currentOwner, tokenId); //Cal the function delete item
+        _owners[msg.sender].push(tokenId); //Add the tokenId to the items acquired by the buyer
+        tokenIdToItem[tokenId].sold = true; //Item marked as sold
+        itemsOnSale--; //Subtract the items on sale
 
-        //Modify required mappings
-        _isOwner[currentOwner][tokenId] = false;
-        _isOwner[msg.sender][tokenId] = true;
-
-        //Modify the number of items of each account
-        _numberOfItems[currentOwner]--;
-        _numberOfItems[msg.sender]++;
-
-        deleteItem(currentOwner, tokenId);
-        _owners[msg.sender].push(tokenId);
-        
-        //Mark this item as sold
-        tokenIdToItem[tokenId].sold = true;
-        itemsOnSale--;
+        emit itemBought(msg.sender, tokenId); //Trigger the event
     } 
     
 
-    function deleteItem(address lastOwner, uint tokenId) private{
-        uint size = _owners[lastOwner].length;
+    function deleteItem(address lastOwner, uint tokenId) private returns(uint) {
+        uint size = _owners[lastOwner].length; // Get the number of items of lastOwner
 
-        for(uint i = 0; i < size; i++){
-            if(_owners[lastOwner][i] == tokenId)
-                delete _owners[lastOwner][i];
+        for(uint i = 0; i < size; i++){ //Go through all these items
+            if(_owners[lastOwner][i] == tokenId){ //If the item to delete is reached
+                delete _owners[lastOwner][i]; //Delete the item
+                return tokenId; //Return the item removed to avoid more than necessary iterations
+            } 
         }
+        return 0; //If item is not removed return 0
     }
 
     function addToMarket(uint tokenId, uint price) public {
         require( tokenIdToItem[tokenId].sold == true, "This item is currently in market" );
         require( _isOwner[msg.sender][tokenId] == true, "You are not this NFT owner" );
-        tokenIdToItem[tokenId].price = price;
-        tokenIdToItem[tokenId].sold = false;
-        itemsOnSale++;
+        tokenIdToItem[tokenId].price = price; //Adjust the price of the item
+        tokenIdToItem[tokenId].sold = false; //Item is not currently sold
+        itemsOnSale++; //Increment the number of items on sale
+        emit itemAddedToMkt(tokenId, price); ////Emit the event
     }
 
     function removeFromMarket(uint tokenId) public {
         require( tokenIdToItem[tokenId].sold == false, "This item is not currently on sale" );
         require( _isOwner[msg.sender][tokenId] == true, "You are not this NFT owner" );
-        tokenIdToItem[tokenId].sold = true;
-        itemsOnSale--;
+        tokenIdToItem[tokenId].sold = true; //Item marked as sold
+        itemsOnSale--; //Subtract the number of items on sale
+        emit itemRemovedFromMkt(tokenId); //Emit the event
     }
 
-    function burn(uint tokenId) public {
-        require(isNFTRegistered[tokenId] == true, "This NFT is not registered");
-        require(tokenIdToItem[tokenId].sold == true, "This NFT is currently on market");
-        require(_isOwner[msg.sender][tokenId] == true, "You are not the owner of this NFT");
-
-        _burn(msg.sender, tokenId, 1);
-
-        //Update mappings
-        isNFTRegistered[tokenId] = false;
-        _isOwner[msg.sender][tokenId] = false;
-        deleteItem(msg.sender, tokenId);
-        _numberOfItems[msg.sender]-=1;
-        delete tokenIdToItem[tokenId];
-
-        //Update variables
-        deleteTokenKey(tokenId);
+    function uri(uint256 tokenId) public view virtual override returns (string memory) {
+        return(string(abi.encodePacked(_uri,"/", Strings.toString(tokenId),".json")));
     }
 
-    function deleteTokenKey(uint tokenId) private {
-        for(uint i = 0; i < tokenKeys.length; i++){
-            if(tokenKeys[i] == tokenId)
-                tokenKeys[i] = 0;
-        }
+    function setURI(string memory newURI) public onlyOwner(msg.sender) {
+        _uri = newURI;
     }
 }

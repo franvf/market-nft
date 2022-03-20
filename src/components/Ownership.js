@@ -4,7 +4,7 @@ import NFT from '../abis/My_NFT.json'; //To connect tbe backend with the fronten
 import axios from 'axios';
 
 class ownership extends Component{
-    async componentWillMount(){
+    async componentDidMount(){
         await this.loadWeb3()
         await this.loadBlockchainData()
     }
@@ -26,7 +26,7 @@ class ownership extends Component{
         //Load accounts
         const accounts = await web3.eth.getAccounts() //Get all the accounts in our metamask
         this.setState({account: accounts[0]}) //Current account
-        const networkId = 5777 //BSC testnet id
+        const networkId = 1337 //BSC testnet id
         const networkData = NFT.networks[networkId] //Get information about this network
         if(networkData){
             const abi = NFT.abi //Contract information
@@ -41,24 +41,21 @@ class ownership extends Component{
     }
 
     async loadMyNFTs(){
+        //Call to getMyItems function in the smart contract
         const data = await this.state.contract.methods.getMyItems().call({from: this.state.account})
-        console.log(data)
         //Map unsold items
         const items = await Promise.all(data.map(async i =>{ //Go trhough all the elements in items, i is each item
-            console.log(i)
-            const tokenUri = await this.state.contract.methods.tokenURI(i.tokenId).call({from: this.state.account}) //Set the uri of actual item tokenId (struct variable)
-            const meta = await axios.get(tokenUri)
+            const tokenUri = await this.state.contract.methods.uri(i.tokenId).call({from: this.state.account}) //Get the uri of actual item 
+            const meta = await axios.get(tokenUri) //Get the information in metadata files
             let item = { //Define NFT info
-                tokenId: i.tokenId,
-                owner: i.owner,
-                amount: i.amount,
-                property: i.property,
-                image: meta.data.image,
+                tokenId: i.tokenId, // /NFT id stored in the item struct
+                amount: i.amount, //Amount of items stored in item struct
+                property: meta.data.attributes[0].trait_type, //Property stored in metadata file
+                image: meta.data.image, //Image stored in metadata file
             }
-            return item
+            return item 
         }))
-        this.setState({nfts: items})
-        console.log(this.state.nfts)
+        this.setState({nfts: items}) //Store the NFTs in the global array
     }
 
     constructor(props){
@@ -72,32 +69,22 @@ class ownership extends Component{
         }
     }
 
-    addItemToMakret = async(tokenId, price) => {
+    addItemToMakret = async(tokenId, price) => { //Pass tokenId and price as parameters
         try{
+            //Call to addToMarket function in the smart contract
             await this.state.contract.methods.addToMarket(tokenId, price).send({from: this.state.account})
         } catch (err) {
-            this.setState({errorMessage: err.message})
-            console.log(this.state.errorMessage)
+            console.log(err) //If an error occurs show it in the console
         } 
     }
 
-    removeItemFromMakret = async(tokenId) => {
+    removeItemFromMakret = async(tokenId) => { //Pass tokenId as parameter
         try{
+            //Call to removeFromMarket function in the smart contract
             await this.state.contract.methods.removeFromMarket(tokenId).send({from: this.state.account})
         } catch (err) {
-            this.setState({errorMessage: err.message})
-            console.log(this.state.errorMessage)
+            console.log(err) //If an error occurs show it in the console
         } 
-    }
-
-    burnToken = async(tokenId) => {
-        try{
-            await this.state.contract.methods.burn(tokenId).send({from: this.state.account})
-            window.location.href="./Form"
-        } catch(err){
-            this.setState({errorMessage: err.message})
-            console.log(this.state.errorMessage)
-        }
     }
 
     render(){
@@ -159,16 +146,6 @@ class ownership extends Component{
                                                     className="bbtn btn-block btn-danger btn-sm"
                                                     value="Remove Item From Market" />
                                             </form>
-                                            <form onSubmit={(event) => {
-                                                event.preventDefault()
-                                                this.burnToken(nft.tokenId)
-                                            }}>
-
-                                                <input type="submit"
-                                                    className="bbtn btn-block btn-danger btn-sm"
-                                                    value="Burn Item" />
-                                            </form>
-                                            
                                         </div>
                                     </div>
                                 ))      

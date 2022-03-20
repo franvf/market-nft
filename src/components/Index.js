@@ -1,10 +1,11 @@
 import React, { Component } from 'react';
 import Web3 from 'web3';
-import NFT from '../abis/My_NFT.json'; //To connect tbe backend with the frontend we have to import the .json of our contrat
+import NFT from '../abis/My_NFT.json'; //To connect the backend with the frontend we have to import the contract abi file
 import axios from 'axios';
 
 class index extends Component{
-    async componentWillMount(){
+    
+    async componentDidMount(){
         await this.loadWeb3()
         await this.loadBlockchainData()
     }
@@ -21,21 +22,20 @@ class index extends Component{
     }
 
     async loadBlockchainData(){
-        const web3 = window.web3
+        const web3 = window.web3 //Create web3 object
 
-        //Load accounts
         const accounts = await web3.eth.getAccounts() //Get all the accounts in our metamask
         this.setState({account: accounts[0]}) //Current account
-        const networkId = 5777 //BSC testnet id
+        const networkId = 1337 //Id of network in use (Default network)
         const networkData = NFT.networks[networkId] //Get information about this network
         if(networkData){
             const abi = NFT.abi //Contract information
             const address = networkData.address //Contract address
-            const contract = new web3.eth.Contract(abi, address) // Mount this contract ??
-            this.setState({contract})
-            console.log(contract)
-            this.setState({address: contract._address})
-            this.loadNFTs()
+            const contract = new web3.eth.Contract(abi, address) // Get the contract
+            this.setState({contract}) //Store the contract in global variable
+            console.log(contract) //Display in cosole the contract info 
+            this.setState({address: contract._address}) //Store the address where the contract is deployed
+            this.loadNFTs() //Call function loadNFTs
         } else {
             window.alert("There are not SC deployed on network")
         }
@@ -46,20 +46,20 @@ class index extends Component{
         console.log(data)
         //Map unsold items
         const items = await Promise.all(data.map(async i =>{ //Go trhough all the elements in items, i is each item
-            const tokenUri = await this.state.contract.methods.tokenURI(i.tokenId).call() //Set the uri of actual item tokenId (struct variable)
-            const meta = await axios.get(tokenUri)
+            const tokenUri = await this.state.contract.methods.uri(i.tokenId).call() //Get the uri of actual item tokenId (struct variable)
+            const meta = await axios.get(tokenUri) //Get the information in metadata files
             let item = { //Define the info of our NFT
-                tokenId: i.tokenId,
-                owner: i.owner,
-                amount: i.amount,
-                property: i.property,
-                price: i.price,
-                image: meta.data.image,
-            }
-            return item
+                tokenId: i.tokenId, //NFT id stored in the item struct
+                owner: i.owner, //NFT owner stored in item struct
+                amount: i.amount, //Amount of items stored in item struct
+                property: meta.data.attributes[0].trait_type, //Property stored in metadata file
+                price: i.price, //Price stored in item struct
+                image: meta.data.image, //Image stored in metadata file
+            } 
+            return item //Get each item
         }))
-        this.setState({nfts: items})
-        console.log(this.state.nfts)
+        this.setState({nfts: items}) //Store in nfts array all items
+        console.log(this.state.nfts) //Show in console the array
     }
 
     constructor(props){
@@ -72,17 +72,16 @@ class index extends Component{
         }
     }
 
-    buyNft = async(nft) => {
-        const web3 = window.web3
-        const accounts = await web3.eth.getAccounts()
-
-        const tokenId = nft.tokenId
-        const price = nft.price
+    buyNft = async(nft) => { //The nft is the argument of this function
+        const tokenId = nft.tokenId //Get the NFT id
+        const price = nft.price //Get the NFT price
         try{
-            await this.state.contract.methods.buyNft(tokenId).send({from: accounts[0], value: price})
-            window.location.href="./"
+            //Call the function buyNft from the smart contract with the id to buy.
+            //Send this call from the current account and send the price as value
+            await this.state.contract.methods.buyNft(tokenId).send({from: this.state.account, value: price})
+            window.location.href="./" //Once the item is bought return to the main page.
         } catch(err){
-            console.log(err.message)
+            console.log(err) //If an error occurs show it in the console
         }
     }
 

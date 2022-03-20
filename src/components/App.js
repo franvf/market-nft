@@ -5,9 +5,7 @@ import Index from './Index';
 import Creator from './Creator';
 import Offers from './Offers';
 import Ownership from './Ownership';
-import Rinkeby from './rinkeby';
 import PDF from './pdf';
-import Form from './Form';
 import 'semantic-ui-css/semantic.min.css';
 
 class App extends Component {
@@ -23,8 +21,6 @@ class App extends Component {
               <Route exact path="/Creator" element={<Creator />}/>
               <Route exact path="/Offers" element={<Offers />}/>
               <Route exact path="/Ownership" element={<Ownership />}/>
-              <Route exact path="/rinkeby" element={<Rinkeby />}/>
-              <Route exact path="/Form" element={<Form />}/>
               <Route exact path="/pdf" element={<PDF />}/>
             </Routes>
           </main>
